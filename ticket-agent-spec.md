@@ -1,6 +1,6 @@
 # Tickets de Ejecución Diferida para Agentes (TED)
 
-**Versión 0.1 — Borrador**
+**Versión 0.1.1 — Borrador**
 
 TED especifica un sistema para que un agente basado en LLM ejecute acciones en un momento futuro, fuera de la sesión que las originó, sin mantener al modelo vivo entre la creación de la intención y su cumplimiento. El sistema compone tres piezas existentes sin modificar ninguna: MCP como interfaz sincrónica modelo-herramientas dentro de una sesión, OKF como formato del conocimiento en reposo, y CCDD como contrato del conocimiento en inferencia. La asincronía, la correlación y la supervisión viven en una capa propia, especificada acá.
 
@@ -193,7 +193,9 @@ Principios de diseño:
 
 ## 6. Máquina de estados
 
-Siete estados, nueve transiciones. Cada arista tiene actor, credencial y verificación explícitos.
+Siete estados, once transiciones. Cada arista tiene actor, credencial y verificación explícitos.
+(Corregido en 0.1.1: la cuenta original de nueve solo nombraba explícitamente una de las tres
+formas en que puede fallar el paso 3 de `pending → leased`; ver el cierre de §6.3 y la tabla.)
 
 ### 6.1 Estados
 
@@ -224,7 +226,7 @@ Propiedad de seguridad resultante: comprometer una credencial no alcanza para co
 3. Con lease adquirido: hash de contenido contra la atestación, consulta al CRL, verificación de vigencia y frescura.
 4. Solo si todo pasa: assemble del contrato CCDD e instanciación del agente.
 
-El orden importa: el CAS antes de las verificaciones caras evita trabajo paralelo redundante; las verificaciones criptográficas antes de la inferencia garantizan que nunca se gasta un token de modelo en un ticket alterado o vencido. Si falla el paso 3: hash inválido va a `failed` con causa `integrity-violated` y NO DEBE reintentarse jamás (reintentar una violación de integridad es un vector de ataque, no una recuperación); atestación vencida va a `expired`.
+El orden importa: el CAS antes de las verificaciones caras evita trabajo paralelo redundante; las verificaciones criptográficas antes de la inferencia garantizan que nunca se gasta un token de modelo en un ticket alterado o vencido. Las tres verificaciones del paso 3 fallan **desde `leased`, no desde `pending`**: el CAS del paso 2 ya movió el ticket ahí antes de que el paso 3 se ejecute. Hash inválido va a `leased → failed` con causa `integrity-violated` y NO DEBE reintentarse jamás (reintentar una violación de integridad es un vector de ataque, no una recuperación); un hit del CRL va a `leased → cancelled`; atestación vencida va a `leased → expired`.
 
 **leased → fulfilled** (orquestador con token vigente). Resultado escrito junto al token; el store DEBE rechazar escrituras con token no vigente.
 
@@ -236,9 +238,25 @@ El orden importa: el CAS antes de las verificaciones caras evita trabajo paralel
 
 **escalated → pending** (creador, no orquestador). La decisión de continuar exige re-firmar: las instrucciones probablemente cambiaron y la ventana original quizás no aplica. Re-atestar crea una versión nueva con hash nuevo: el ticket que vuelve es criptográficamente distinguible del original. La historia no se reescribe; se extiende.
 
-**escalated → cancelled** y **pending → cancelled** (creador, con revocación firmada asentada en el CRL).
+**escalated → cancelled**, **pending → cancelled** y **leased → cancelled** (creador, con revocación firmada asentada en el CRL). La tercera arista es la que el paso 3 de `pending → leased` recorre cuando encuentra un hit en el CRL: el ticket ya está en `leased` (CAS del paso 2), y la revocación que autoriza la transición ya fue firmada de antemano por el creador — no hace falta una firma nueva en el momento.
 
-**pending → expired** (reloj). Se constata en el sweep periódico (higiene) y, crucialmente, dentro de la cadena de verificación de `pending → leased`, porque el trigger puede llegar en el borde. La verificación en el consumo es la que manda.
+**pending → expired** y **leased → expired** (reloj). La primera se constata en el sweep periódico (higiene); la segunda, dentro de la cadena de verificación de `pending → leased` (paso 3), cuando el ticket ya está en `leased` y la ventana venció. Ninguna de las dos exige credencial: se derivan deterministicamente de datos ya firmados, igual que toda transición de `clock`. La verificación en el consumo es la que manda.
+
+### Tabla de las 11 aristas
+
+| Desde | Hacia | Actor |
+|---|---|---|
+| `pending` | `leased` | Sistema de cumplimiento |
+| `leased` | `fulfilled` | Orquestador |
+| `leased` | `failed` | Orquestador |
+| `leased` | `pending` | Reloj |
+| `leased` | `escalated` | Orquestador |
+| `escalated` | `pending` | Creador |
+| `escalated` | `cancelled` | Creador |
+| `pending` | `cancelled` | Creador |
+| `pending` | `expired` | Reloj |
+| `leased` | `expired` | Reloj |
+| `leased` | `cancelled` | Creador |
 
 ### 6.4 Invariantes
 
@@ -506,7 +524,7 @@ El efecto `attempted` contra un sistema no consultable y no idempotente (§11.3,
 
 Una implementación es conformante con TED 0.1 si:
 
-1. El bundle de cada ticket es conformante con OKF v0.1 (frontmatter parseable, `type` no vacío) y su contrato valida contra el schema CCDD correspondiente.
+1. El bundle de cada ticket es conformante con OKF v0.1 (frontmatter parseable, `type` no vacío) y su contrato valida contra el schema CCDD correspondiente. Cuando el agente ejecutor no consume una ventana de contexto real (por ejemplo, una implementación de referencia con un agente determinista sin modelo detrás), este punto se satisface sobre los datos que el contrato de rehidratación gobernaría — slots firmados, contexto — sin exigir un ensamblador de prompt como artefacto separado: no tiene sentido validar un componente sin consumidor real.
 2. Existe la partición de §3: estado disputado en un store con CAS y TTL; lo firmado y auditable en el bundle. Ninguna decisión de ejecución se toma leyendo campos `projected_`.
 3. Toda transición de la máquina de §6 exige la credencial de su actor, y los cuatro terminales son irreversibles en el store.
 4. La cadena de verificación de `pending → leased` se ejecuta completa y en orden antes de instanciar el agente, incluyendo consulta al CRL.
@@ -533,6 +551,19 @@ Los consumidores DEBERÍAN tratar el resto de este documento como guía fuerte. 
 ## 17. Versionado
 
 Este documento especifica TED versión 0.1. Revisiones futuras se versionan `<mayor>.<menor>`: menor para adiciones retrocompatibles (nuevos campos opcionales del manifiesto, nuevos disparadores), mayor para cambios que rompen (semántica de la máquina de estados, estructura de la atestación).
+
+### 17.1 Historial de revisiones
+
+- **0.1.1**: corrección de §6.3. La cadena de verificación de `pending → leased` ya describía que
+  el paso 3 (hash, CRL, vigencia) puede fallar de tres formas, pero el texto solo nombraba
+  explícitamente el destino del fallo de hash (`failed`); no aclaraba que las tres fallas ocurren
+  **desde `leased`** (el CAS del paso 2 ya movió el ticket ahí) ni nombraba destino para un hit
+  de CRL. Se agregan las aristas `leased → expired` y `leased → cancelled` (el conteo pasa de
+  nueve a once transiciones), con la tabla completa en §6.3, y se precisa §15 punto 1 sobre qué
+  significa "contrato de rehidratación validable" cuando el agente ejecutor no tiene ventana de
+  contexto real que gobernar. Cambio menor (§17): no rompe semántica existente, la explicita.
+  Encontrado al construir una implementación de referencia completa contra este documento.
+- **0.1**: versión inicial.
 
 ---
 

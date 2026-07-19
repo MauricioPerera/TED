@@ -20,8 +20,10 @@ Componentes por encima de la partición:
 - `src/crypto`: firmas de transporte (HMAC), contenido (SHA-256), atestación (Ed25519).
 - `src/attestation`: cadena de verificación de atestación + CRL de revocaciones.
 - `src/constraints`: lenguaje de constraints permit/deny/error (§12).
-- `src/state-machine`: 7 estados, 9 transiciones, actor/credencial por arista (§6).
-- `src/shim`: shim de efectos como servidor MCP proxy — mediación completa (§11).
+- `src/state-machine`: 7 estados, 11 transiciones, actor/credencial por arista (§6; corregido en
+  spec 0.1.1 tras encontrar el hueco al construir el orquestador).
+- `src/shim`: motor de mediación de efectos — mediación completa (§11); no expone un servidor MCP
+  real, ver `docs/reports/conformance.md` ítem 5.
 - `src/escalation`: disparadores duros de escalada, computados fuera del modelo (§13.1).
 - `src/orchestrator`: cadena `pending → leased`, ensamblado del contrato de rehidratación,
   instanciación del agente ejecutor (mock en esta versión).
