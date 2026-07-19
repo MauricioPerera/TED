@@ -10,7 +10,19 @@ export interface TransitionEdge {
   actor: Actor;
 }
 
-// Las 9 aristas exactas (S6.3/S6.2). No agregar ni quitar ninguna.
+// Las 11 aristas exactas (S6.3/S6.2). No agregar ni quitar ninguna.
+//
+// CORRECCION (encontrada al disenar el orquestador, Batch 4): S6.3 paso 3 de
+// pending->leased puede fallar de TRES formas una vez adquirido el lease --
+// hash contra la atestacion, consulta al CRL, vigencia/frescura -- pero el
+// texto normativo solo nombra explicitamente el camino de hash invalido
+// (-> failed). Las otras dos fallas ocurren igual DESDE "leased" (el CAS ya
+// paso) y necesitan arista propia: `leased -> expired` (vigencia vencida,
+// mismo actor "clock" que `pending -> expired`: no hace falta credencial
+// nueva, es una comparacion de fecha sobre datos ya firmados) y
+// `leased -> cancelled` (hit de CRL: la revocacion que autoriza esta arista
+// ya la firmo el creador de antemano, mismo actor "creator" que las otras
+// dos aristas hacia cancelled). Ver knowledge/contracts/ted-state-machine.md.
 export const TRANSITIONS: readonly TransitionEdge[] = [
   { from: "pending", to: "leased", actor: "fulfillment_system" },
   { from: "leased", to: "fulfilled", actor: "orchestrator" },
@@ -21,6 +33,8 @@ export const TRANSITIONS: readonly TransitionEdge[] = [
   { from: "escalated", to: "cancelled", actor: "creator" },
   { from: "pending", to: "cancelled", actor: "creator" },
   { from: "pending", to: "expired", actor: "clock" },
+  { from: "leased", to: "expired", actor: "clock" },
+  { from: "leased", to: "cancelled", actor: "creator" },
 ];
 
 export function isLegalTransition(
