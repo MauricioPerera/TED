@@ -1,0 +1,8 @@
+node_modules/
+.agents/logs/*.md
+!.agents/logs/.gitkeep
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+dist/
+*.log
