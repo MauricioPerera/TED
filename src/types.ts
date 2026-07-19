@@ -132,6 +132,13 @@ export interface StoreRecord {
 
 export type ConstraintVerdict = "permit" | "deny" | "error";
 
+// Snapshot de negocio por efecto que ven las constraints (S12.6): NO es el
+// LedgerEntry interno del store (ese es control-plane: declared/attempted/
+// confirmed + fencing token). Este es el dato de negocio asociado a cada
+// efecto (ej. { state: "confirmed", amount: 100 }), que el orquestador
+// ensambla a partir de lo que hizo falta declarar para las constraints.
+export type ConstraintLedgerSnapshot = Record<string, Record<string, unknown>>;
+
 export interface ConstraintEvalResult {
   verdict: ConstraintVerdict;
   reason?: string;
