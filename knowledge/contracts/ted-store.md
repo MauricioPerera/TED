@@ -63,8 +63,11 @@ Tipos en [`src/types.ts`](../../src/types.ts) (`StoreRecord`, `TicketState`, `Le
   Cualquier otro estado -> devuelve `null` (absorbe duplicados de callback, S6.3).
 - **`reclaimExpiredLease` solo actúa si el lease genuinamente venció** (`leaseExpiresAt <= now` Y
   estado actual `"leased"`); si no, devuelve `null`. Al reclamar: `attempts += 1`; si
-  `attempts > maxAttempts` -> `state: "failed"`, `failureCause: "retry-exhausted"` (S6.4
-  invariante 2); si no -> `state: "pending"`, `leaseExpiresAt: null`.
+  `attempts >= maxAttempts` -> `state: "failed"`, `failureCause: "retry-exhausted"` (S6.4
+  invariante 2); si no -> `state: "pending"`, `leaseExpiresAt: null`. (Corregido de `>` a `>=`
+  tras la implementación: el oráculo congelado usa `maxAttempts=1` y espera `failed` en el primer
+  reclaim, lo que solo es consistente con `>=` — el oráculo manda, ver
+  `.agents/logs/ted-store-REPORT.md`.)
 - **`ledgerMarkAttempted` sobre una entrada ya `"confirmed"` es idempotente**: devuelve la entrada
   existente sin modificarla (ni el `resultHash` ni el estado retroceden) — replay transparente
   para el sucesor (S11.2 paso 2).
