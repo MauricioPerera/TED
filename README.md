@@ -7,8 +7,16 @@ para el mapa spec→módulo, y [.agents/AGENTS.md](.agents/AGENTS.md) para las r
 
 ## Estado
 
-En construcción. Checklist de conformidad mínima (§15 de la spec) en
-[docs/reports/conformance.md](docs/reports/conformance.md) (se agrega en Batch 5).
+Conformidad mínima (§15 de la spec) completa: los 9 módulos (`crypto`, `store`, `bundle`,
+`constraints`, `state-machine`, `attestation`, `escalation`, `shim`, `orchestrator`) están
+implementados y verificados, conectados end-to-end vía `orchestrator.handleCallback`. Checklist
+punto por punto, con evidencia de test, en
+[docs/reports/conformance.md](docs/reports/conformance.md).
+
+108 tests (100 unitarios + 8 end-to-end con bundles reales firmados en disco), corridos dos veces
+para determinismo, `tsc --noEmit` limpio, gate de complejidad en verde. Fuera de alcance: los
+ítems RECOMENDADO de la spec (juez, retrieval por grafo, compactador) y un agente T2 real (se usa
+un agente mock determinista) — ver [DEFINITION.md](DEFINITION.md), "Fuera de alcance".
 
 ## Desarrollo
 
