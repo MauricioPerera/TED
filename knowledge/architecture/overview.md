@@ -18,12 +18,11 @@ directamente, no a este archivo, salvo cuando necesiten el mapeo).
 | `src/store` | S3, S7.2, S7.3 (ledger) | SQLite embebido: CAS+TTL, fencing token, ledger `declared/attempted/confirmed` |
 | `src/bundle` | S4 | Lectura/escritura del directorio del ticket, frontmatter OKF, verificacion de hashes |
 | `src/constraints` | S12 | Evaluador determinista permit/deny/error sobre {params, facts, ledger} |
-| `src/state-machine` | S6 | 7 estados, 9 transiciones, actor/credencial por arista |
+| `src/state-machine` | S6 | 11 aristas (9 nominales + 2 encontradas al construir el orquestador, ver ted-state-machine.md), actor/credencial por arista |
 | `src/attestation` | S5, S10.1 | Cadena de verificacion de atestacion + CRL |
-| `src/shim` | S11 | Servidor MCP proxy: mediacion completa, tipado de lecturas |
+| `src/shim` | S11 | Motor de mediacion (11 pasos de S11.2); no expone transporte MCP real, ver docs/reports/conformance.md item 5 |
 | `src/escalation` | S13.1 | Disparadores duros, computados fuera del modelo |
-| `src/orchestrator` | S6.3 (`pending -> leased`), Apendice A | Cadena de verificacion completa + ensamblado + instanciacion del agente |
-| `src/mock-agent` | — (fuera de spec, ver DEFINITION.md "Fuera de alcance") | Agente T2 deterministico para tests end-to-end |
+| `src/orchestrator` | S6.3 (`pending -> leased`), Apendice A | Cadena de verificacion completa + ensamblado del shim + invocacion del agente (tipo `Agent`, inyectado; el mock de referencia vive en tests/e2e, no en un modulo `src/` propio) |
 
 Partición de estado (decisión que gobierna todo lo demás, S3): `src/bundle` es dueño de lo firmado
 e inmutable; `src/store` es dueño de lo disputado. Ningún módulo debe decidir un flujo de ejecución
